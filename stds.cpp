@@ -8,6 +8,7 @@
 #define zero_memory(chunk) memset(chunk, '\0', sizeof(chunk))
 
 static const char * db_name = "students.tbl";
+static const char * db_name_out = "students_out.tbl";
 
 /**
  * Идентификаторы предметов
@@ -60,7 +61,6 @@ bool check_database();
 Students GetAllStudents();
 void SaveStudentsInfo(Students);
 
-
 bool check_database() 
 {
     FILE * fp;
@@ -72,7 +72,6 @@ bool check_database()
     }
     return false;
 }
-
 
 void readName(FILE * fd, Student& student) 
 {
@@ -86,7 +85,6 @@ void readName(FILE * fd, Student& student)
     student.name += std::string(initials);
 }
 
-
 void readMeta(FILE * fd, Student& student)
 {
     char metaline[BUFSIZ]; zero_memory(metaline);
@@ -98,7 +96,6 @@ void readMeta(FILE * fd, Student& student)
     student.birthday = std::string(metaline, sep - metaline);
     student.group = std::string(sep + 1);
 }
-
 
 void readSubject(FILE * fd, Student& student) 
 {
@@ -121,7 +118,6 @@ void readSubject(FILE * fd, Student& student)
     }
 }
 
-
 void last_support(Students& students, Student& student) 
 {
     int m_count = 0;
@@ -142,7 +138,6 @@ void last_support(Students& students, Student& student)
     student.name.clear();
     student.rating.clear();
 }
-
 
 Students GetAllStudents() 
 {
@@ -186,31 +181,66 @@ Students GetAllStudents()
     return students;
 }
 
-
-void SaveStudentsInfo(Students) 
+void SaveStudentsInfo(Students students) 
 {
+    FILE * fp;
 
+    fp = fopen(db_name_out, "w");
+    if (!fp) {
+        puts("Error has been occured: Database file is locked or access is denided\n");
+        exit(EXIT_SUCCESS);
+    }
+
+    for (const auto & student : students) 
+    {
+        fprintf(fp, "s %s\n", student.name.c_str());
+        fprintf(fp, "m %s;%s\n", student.birthday.c_str(), student.group.c_str());
+        
+        for (const auto & p : student.rating) 
+        {
+            const int subject = (int)p.first;
+            const auto& rating = p.second;
+            
+            fprintf(fp, "p%d", subject);
+
+            for (const auto rat : rating) 
+            {
+                fputc(' ', fp);
+                fprintf(fp, "%d", rat);
+            }
+            fputc('\n', fp);
+        }
+    }
+}
+
+void usage() {
+    puts("Usage: sdb -<param>          \n\
+    -a    append new student           \n\
+    -u    update student info          \n\
+    -r    remove student from database \n\
+    -l    list all students            \n\
+    -h    prints this text");
+    system("PAUSE");
+    exit(EXIT_SUCCESS);
 }
 
 
-int main(int argc, char ** argv) 
+void list_all_students(int max_students = 3) 
 {
-    setlocale(LC_ALL, "");
-
     auto stud = GetAllStudents();
-
-    for (auto stde : stud) 
+    int i = 0;
+    for (auto stde : stud)
     {
         printf("Name: %s\n", stde.name.c_str());
-        
+
         auto& mp = stde.rating;
-        
-        for (auto mm : mp) 
+
+        for (auto mm : mp)
         {
             printf("%s: ", SubjectToString(mm.first));
 
             const auto& rating = mm.second;
-            for (const auto &rat : rating) 
+            for (const auto &rat : rating)
             {
                 printf("%d", rat); putc(' ', stdout);
             }
@@ -219,8 +249,60 @@ int main(int argc, char ** argv)
 
         printf("Avg: %.2f\n", stde.avg);
         putc('\n', stdout);
+
+        i++;
+        if (i > max_students) break;
+    }
+}
+
+
+
+void dbg_load_save() 
+{
+    auto stds = GetAllStudents();
+    SaveStudentsInfo(stds);
+}
+
+
+int main(int argc, char ** argv) 
+{
+    int stds = 0;
+
+    setlocale(LC_ALL, "");
+
+    if (argc == 1) 
+        usage();
+    
+    argv++;
+    argc--;
+
+    switch ((*argv)[1]) 
+    {
+    case 'a':
+
+        break;
+    case 'u': 
+
+        break;
+    case 'r': 
+
+        break;
+    case 'l':
+        if (argc > 0) {
+            sscanf(*(++argv), "%d", &stds);
+            if (stds > 0xFFFF) stds = 10;
+        }
+        list_all_students(stds);
+        break;
+    case 'd':
+        dbg_load_save();
+        break;
+    case 'h': 
+    default:
+        usage();
+        break;
     }
     
-    return 0;
+    return EXIT_SUCCESS;
 }
 
