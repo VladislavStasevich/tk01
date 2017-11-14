@@ -1,8 +1,9 @@
 #include <vector>
 #include <list>
 #include <map>
-#include <sys\stat.h>
-#include <sys\types.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <locale>
 
 #define zero_memory(chunk) memset(chunk, '\0', sizeof(chunk))
@@ -21,7 +22,7 @@ enum class Subject : unsigned char {
     UNKNOW = 4u
 };
 
-const char * SubjectToString(Subject subject) 
+const char * SubjectToString(Subject subject)
 {
     switch (subject)
     {
@@ -58,38 +59,44 @@ using Students = std::list<Student>;
  */
 bool check_database();
 
+/**
+ * Считывает всех студентов из файла.
+ * @return Список студентов
+ */
 Students GetAllStudents();
+
+/**
+ * Записывает список студентов в файл.
+ * @param Students список студентов.
+ */
 void SaveStudentsInfo(Students);
 
-bool check_database() 
-{
-    FILE * fp;
-
-    fp = fopen(db_name, "r");
-    if (fp) {
-        fclose(fp);
-        return true;
-    }
-    return false;
-}
-
-void readName(FILE * fd, Student& student) 
+/**
+ * Считывает ФИО из фалйа
+ */
+void readName(FILE * fd, Student& student)
 {
     char last_name[64]; zero_memory(last_name);
     char initials[64];  zero_memory(initials);
-    
+
     fscanf(fd, "%s %s\n", &last_name, &initials);
-    
+
     student.name += std::string(last_name);
     student.name += " ";
     student.name += std::string(initials);
 }
 
+/**
+ * Считывает мета информацию из фалйа
+ */
 void readMeta(FILE * fd, Student& student)
 {
     char metaline[BUFSIZ]; zero_memory(metaline);
-    
-    fscanf(fd, "%s;%s", &metaline);
+
+    // <birthday>;<groupid>
+    const char * meta_format = "%s;%s";
+
+    fscanf(fd, meta_format, &metaline);
 
     char * sep = strchr(metaline, ';');
 
@@ -97,36 +104,41 @@ void readMeta(FILE * fd, Student& student)
     student.group = std::string(sep + 1);
 }
 
-void readSubject(FILE * fd, Student& student) 
+/**
+ * Считывает оценки предмета из фалйа
+ */
+void readSubject(FILE * fd, Student& student)
 {
-    Subject sub = Subject::UNKNOW;
     uint32_t subi = 0;
     fscanf(fd, "%d ", &subi);
-    sub = (Subject)subi;
- 
+    const Subject sub = (Subject)subi;
+
     if (sub >= Subject::UNKNOW)
         return;
-    
+
     auto& rating = student.rating[sub];
 
     while (!feof(fd))
     {
         int rat = 0;
-        const int endl = fscanf(fd, "%d ", &rat);
-        if (!endl) break;
+        if(!fscanf(fd, "%d ", &rat))
+            break;
         rating.push_back(rat);
     }
 }
 
-void last_support(Students& students, Student& student) 
+/**
+ * Записывает студента в список.
+ */
+void last_support(Students& students, Student& student)
 {
     int m_count = 0;
     int sum = 0.0f;
 
-    for (const auto & p : student.rating) 
+    for (const auto & p : student.rating)
     {
         m_count += p.second.size();
-        for (const int m : p.second) 
+        for (const int m : p.second)
         {
             sum += m;
         }
@@ -139,7 +151,7 @@ void last_support(Students& students, Student& student)
     student.rating.clear();
 }
 
-Students GetAllStudents() 
+Students GetAllStudents()
 {
     FILE * fd;
     Students students;
@@ -152,13 +164,13 @@ Students GetAllStudents()
         return students;
     }
 
-    while (!feof(fd)) 
+    while (!feof(fd))
     {
         int c = getc(fd);
-        
+
         switch (c) {
-        case 'p': 
-            readSubject(fd, student); 
+        case 'p':
+            readSubject(fd, student);
             last_p = true;
             break;
 
@@ -168,7 +180,7 @@ Students GetAllStudents()
             readName(fd, student);
             break;
 
-        case 'm': 
+        case 'm':
             readMeta(fd, student);
             last_p = false;
             break;
@@ -181,7 +193,7 @@ Students GetAllStudents()
     return students;
 }
 
-void SaveStudentsInfo(Students students) 
+void SaveStudentsInfo(Students students)
 {
     FILE * fp;
 
@@ -191,19 +203,19 @@ void SaveStudentsInfo(Students students)
         exit(EXIT_SUCCESS);
     }
 
-    for (const auto & student : students) 
+    for (const auto & student : students)
     {
         fprintf(fp, "s %s\n", student.name.c_str());
         fprintf(fp, "m %s;%s\n", student.birthday.c_str(), student.group.c_str());
-        
-        for (const auto & p : student.rating) 
+
+        for (const auto & p : student.rating)
         {
             const int subject = (int)p.first;
             const auto& rating = p.second;
-            
+
             fprintf(fp, "p%d", subject);
 
-            for (const auto rat : rating) 
+            for (const auto rat : rating)
             {
                 fputc(' ', fp);
                 fprintf(fp, "%d", rat);
@@ -213,19 +225,25 @@ void SaveStudentsInfo(Students students)
     }
 }
 
-void usage() {
+void usage()
+{
     puts("Usage: sdb -<param>          \n\
     -a    append new student           \n\
     -u    update student info          \n\
     -r    remove student from database \n\
     -l    list all students            \n\
     -h    prints this text");
+
+#ifdef _WIN32
+    // only windows has `pause` feature.
     system("PAUSE");
+#endif
+
     exit(EXIT_SUCCESS);
 }
 
 
-void list_all_students(int max_students = 3) 
+void list_all_students(int max_students = 3)
 {
     auto stud = GetAllStudents();
     int i = 0;
@@ -257,38 +275,38 @@ void list_all_students(int max_students = 3)
 
 
 
-void dbg_load_save() 
+void dbg_load_save()
 {
     auto stds = GetAllStudents();
     SaveStudentsInfo(stds);
 }
 
 
-int main(int argc, char ** argv) 
+int main(int argc, char ** argv)
 {
     int stds = 0;
 
     setlocale(LC_ALL, "");
 
-    if (argc == 1) 
+    if (argc == 1)
         usage();
-    
+
     argv++;
     argc--;
 
-    switch ((*argv)[1]) 
+    switch ((*argv)[1])
     {
     case 'a':
 
         break;
-    case 'u': 
+    case 'u':
 
         break;
-    case 'r': 
+    case 'r':
 
         break;
     case 'l':
-        if (argc > 0) {
+        if (argc > 1) {
             sscanf(*(++argv), "%d", &stds);
             if (stds > 0xFFFF) stds = 10;
         }
@@ -297,12 +315,12 @@ int main(int argc, char ** argv)
     case 'd':
         dbg_load_save();
         break;
-    case 'h': 
+    case 'h':
     default:
         usage();
         break;
     }
-    
+
     return EXIT_SUCCESS;
 }
 
