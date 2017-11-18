@@ -1,10 +1,11 @@
 #include <vector>
 #include <list>
 #include <map>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <cstring>
+#include <cstdlib>
 #include <locale>
+#include <fstream>
+#include <iostream>
 
 #define zero_memory(chunk) memset(chunk, '\0', sizeof(chunk))
 
@@ -19,7 +20,7 @@ enum class Subject : unsigned char {
     MATHEMATICS = 1u,
     COMPUTER_SCIENCE = 2u,
     CHEMISTRY = 3u,
-    UNKNOW = 4u
+    UNKNOWN = 4u
 };
 
 const char * SubjectToString(Subject subject)
@@ -30,7 +31,7 @@ const char * SubjectToString(Subject subject)
     case Subject::COMPUTER_SCIENCE: return "CSci";
     case Subject::PHYSICS: return "Phys";
     case Subject::CHEMISTRY: return "Chem";
-    case Subject::UNKNOW: break;
+    case Subject::UNKNOWN: break;
     }
     return "";
 }
@@ -52,12 +53,6 @@ struct Student {
  * Список студентов
  */
 using Students = std::list<Student>;
-
-/**
- * Проверка существования файла.
- * @return true если файл существует/доступен иначе false
- */
-bool check_database();
 
 /**
  * Считывает всех студентов из файла.
@@ -113,7 +108,7 @@ void readSubject(FILE * fd, Student& student)
     fscanf(fd, "%d ", &subi);
     const Subject sub = (Subject)subi;
 
-    if (sub >= Subject::UNKNOW)
+    if (sub >= Subject::UNKNOWN)
         return;
 
     auto& rating = student.rating[sub];
@@ -133,7 +128,7 @@ void readSubject(FILE * fd, Student& student)
 void last_support(Students& students, Student& student)
 {
     int m_count = 0;
-    int sum = 0.0f;
+    float sum = 0.0f;
 
     for (const auto & p : student.rating)
     {
@@ -144,7 +139,7 @@ void last_support(Students& students, Student& student)
         }
     }
 
-    student.avg = ((float)sum / (float)m_count);
+    student.avg = (sum / (float)m_count);
 
     students.push_back(std::move(student));
     student.name.clear();
@@ -157,7 +152,6 @@ Students GetAllStudents()
     Students students;
     Student student;
     bool last_p = false;
-    char buffer[BUFSIZ];
 
     fd = fopen(db_name, "r");
     if (!fd) {
@@ -184,6 +178,8 @@ Students GetAllStudents()
             readMeta(fd, student);
             last_p = false;
             break;
+        default:
+            break;
         }
     }
 
@@ -195,33 +191,39 @@ Students GetAllStudents()
 
 void SaveStudentsInfo(Students students)
 {
-    FILE * fp;
+    try {
+        std::ofstream ofs(db_name_out);
 
-    fp = fopen(db_name_out, "w");
-    if (!fp) {
-        puts("Error has been occured: Database file is locked or access is denided\n");
-        exit(EXIT_SUCCESS);
-    }
-
-    for (const auto & student : students)
-    {
-        fprintf(fp, "s %s\n", student.name.c_str());
-        fprintf(fp, "m %s;%s\n", student.birthday.c_str(), student.group.c_str());
-
-        for (const auto & p : student.rating)
+        for (const auto & student : students)
         {
-            const int subject = (int)p.first;
-            const auto& rating = p.second;
+            ofs << "s "
+                << student.name
+                << std::endl;
 
-            fprintf(fp, "p%d", subject);
+            ofs << "m "
+                << student.birthday.c_str()
+                << ";"
+                << student.group.c_str()
+                << std::endl;
 
-            for (const auto rat : rating)
+            for (const auto & p : student.rating)
             {
-                fputc(' ', fp);
-                fprintf(fp, "%d", rat);
+                const auto subject = static_cast<int>(p.first);
+                const auto& rating = p.second;
+
+                ofs << "p" << subject;
+
+                for (const auto rat : rating)
+                {
+                    ofs << " " << rat;
+                }
+                ofs << std::endl;
             }
-            fputc('\n', fp);
         }
+    }
+    catch (const std::exception & exc) 
+    {
+        std::cerr << "[Error] " << exc.what() << std::endl;
     }
 }
 
