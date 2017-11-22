@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 11)
 project(tk01 CXX)
 
 # Project executable files
-add_executable(tk01 stds.cpp)
+add_executable(tk01 stds.cpp student.cpp student.hpp)
 
 install(TARGETS tk01 DESTINATION bin)
 

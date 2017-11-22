@@ -50,11 +50,11 @@ subj = (
 
 
 def gen_name():
-    return select_random(names).encode('ascii')
+    return select_random(names)
 
 
 def gen_first_name():
-    return select_random(fnames).encode('ascii')
+    return select_random(fnames)
 
 
 def gen_marks(sub):

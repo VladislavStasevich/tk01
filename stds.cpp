@@ -1,240 +1,17 @@
-#include <vector>
-#include <list>
-#include <map>
+#include "student.hpp"
+
 #include <cstring>
 #include <cstdlib>
-#include <locale>
-#include <fstream>
-#include <iostream>
 
-#define zero_memory(chunk) memset(chunk, '\0', sizeof(chunk))
-
-static const char * db_name = "students.tbl";
-static const char * db_name_out = "students_out.tbl";
-
-/**
- * Идентификаторы предметов
- */
-enum class Subject : unsigned char {
-    PHYSICS = 0u,
-    MATHEMATICS = 1u,
-    COMPUTER_SCIENCE = 2u,
-    CHEMISTRY = 3u,
-    UNKNOWN = 4u
-};
-
-const char * SubjectToString(Subject subject)
-{
-    switch (subject)
-    {
-    case Subject::MATHEMATICS: return "Math";
-    case Subject::COMPUTER_SCIENCE: return "CSci";
-    case Subject::PHYSICS: return "Phys";
-    case Subject::CHEMISTRY: return "Chem";
-    case Subject::UNKNOWN: break;
-    }
-    return "";
-}
-
-/**
- * Структура хранящаяя информацию о студенте
- */
-struct Student {
-    std::string name;
-    std::string birthday;
-    std::string group;
-    std::map<Subject, std::vector<int>> rating;
-    float avg = 0.0f;
-
-    Student() = default;
-};
-
-/**
- * Список студентов
- */
-using Students = std::list<Student>;
-
-/**
- * Считывает всех студентов из файла.
- * @return Список студентов
- */
-Students GetAllStudents();
-
-/**
- * Записывает список студентов в файл.
- * @param Students список студентов.
- */
-void SaveStudentsInfo(Students);
-
-/**
- * Считывает ФИО из фалйа
- */
-void readName(FILE * fd, Student& student)
-{
-    char last_name[64]; zero_memory(last_name);
-    char initials[64];  zero_memory(initials);
-
-    fscanf(fd, "%s %s\n", &last_name, &initials);
-
-    student.name += std::string(last_name);
-    student.name += " ";
-    student.name += std::string(initials);
-}
-
-/**
- * Считывает мета информацию из фалйа
- */
-void readMeta(FILE * fd, Student& student)
-{
-    char metaline[BUFSIZ]; zero_memory(metaline);
-
-    // <birthday>;<groupid>
-    const char * meta_format = "%s;%s";
-
-    fscanf(fd, meta_format, &metaline);
-
-    char * sep = strchr(metaline, ';');
-
-    student.birthday = std::string(metaline, sep - metaline);
-    student.group = std::string(sep + 1);
-}
-
-/**
- * Считывает оценки предмета из фалйа
- */
-void readSubject(FILE * fd, Student& student)
-{
-    uint32_t subi = 0;
-    fscanf(fd, "%d ", &subi);
-    const Subject sub = (Subject)subi;
-
-    if (sub >= Subject::UNKNOWN)
-        return;
-
-    auto& rating = student.rating[sub];
-
-    while (!feof(fd))
-    {
-        int rat = 0;
-        if(!fscanf(fd, "%d ", &rat))
-            break;
-        rating.push_back(rat);
-    }
-}
-
-/**
- * Записывает студента в список.
- */
-void last_support(Students& students, Student& student)
-{
-    int m_count = 0;
-    float sum = 0.0f;
-
-    for (const auto & p : student.rating)
-    {
-        m_count += p.second.size();
-        for (const int m : p.second)
-        {
-            sum += m;
-        }
-    }
-
-    student.avg = (sum / (float)m_count);
-
-    students.push_back(std::move(student));
-    student.name.clear();
-    student.rating.clear();
-}
-
-Students GetAllStudents()
-{
-    FILE * fd;
-    Students students;
-    Student student;
-    bool last_p = false;
-
-    fd = fopen(db_name, "r");
-    if (!fd) {
-        return students;
-    }
-
-    while (!feof(fd))
-    {
-        int c = getc(fd);
-
-        switch (c) {
-        case 'p':
-            readSubject(fd, student);
-            last_p = true;
-            break;
-
-        case 's':
-            if (last_p) last_support(students, student);
-            last_p = false;
-            readName(fd, student);
-            break;
-
-        case 'm':
-            readMeta(fd, student);
-            last_p = false;
-            break;
-        default:
-            break;
-        }
-    }
-
-    // for last student
-    if (last_p) students.push_back(student);
-
-    return students;
-}
-
-void SaveStudentsInfo(Students students)
-{
-    try {
-        std::ofstream ofs(db_name_out);
-
-        for (const auto & student : students)
-        {
-            ofs << "s "
-                << student.name
-                << std::endl;
-
-            ofs << "m "
-                << student.birthday.c_str()
-                << ";"
-                << student.group.c_str()
-                << std::endl;
-
-            for (const auto & p : student.rating)
-            {
-                const auto subject = static_cast<int>(p.first);
-                const auto& rating = p.second;
-
-                ofs << "p" << subject;
-
-                for (const auto rat : rating)
-                {
-                    ofs << " " << rat;
-                }
-                ofs << std::endl;
-            }
-        }
-    }
-    catch (const std::exception & exc) 
-    {
-        std::cerr << "[Error] " << exc.what() << std::endl;
-    }
-}
 
 void usage()
 {
-    puts("Usage: sdb -<param>          \n\
-    -a    append new student           \n\
-    -u    update student info          \n\
-    -r    remove student from database \n\
-    -l    list all students            \n\
-    -h    prints this text");
+    puts(R"help(Usage: sdb -<param>
+    - a    append new student
+    - u    update student info
+    - r    remove student from database
+    - l    list all students
+    - h    prints this text)help");
 
 #ifdef _WIN32
     // only windows has `pause` feature.
@@ -243,38 +20,6 @@ void usage()
 
     exit(EXIT_SUCCESS);
 }
-
-
-void list_all_students(int max_students = 3)
-{
-    auto stud = GetAllStudents();
-    int i = 0;
-    for (auto stde : stud)
-    {
-        printf("Name: %s\n", stde.name.c_str());
-
-        auto& mp = stde.rating;
-
-        for (auto mm : mp)
-        {
-            printf("%s: ", SubjectToString(mm.first));
-
-            const auto& rating = mm.second;
-            for (const auto &rat : rating)
-            {
-                printf("%d", rat); putc(' ', stdout);
-            }
-            putc('\n', stdout);
-        }
-
-        printf("Avg: %.2f\n", stde.avg);
-        putc('\n', stdout);
-
-        i++;
-        if (i > max_students) break;
-    }
-}
-
 
 
 void dbg_load_save()
@@ -312,7 +57,7 @@ int main(int argc, char ** argv)
             sscanf(*(++argv), "%d", &stds);
             if (stds > 0xFFFF) stds = 10;
         }
-        list_all_students(stds);
+        PrintAllStudents(stds);
         break;
     case 'd':
         dbg_load_save();
